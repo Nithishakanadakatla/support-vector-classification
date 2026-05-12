@@ -19,527 +19,239 @@ from sklearn.metrics import (
     classification_report,
     roc_curve,
     auc
-
 )
 
 # ==========================================
-# PAGE CONFIG
+# CONFIG
 # ==========================================
-
 st.set_page_config(
-    page_title="SVM Cancer Diagnosis Application",
+    page_title="SVM Cancer Diagnosis App",
     page_icon="🧬",
     layout="wide"
 )
 
 # ==========================================
-# CUSTOM CSS
+# SMALL UI IMPROVEMENT CSS
 # ==========================================
-
 st.markdown("""
 <style>
+.main {background-color: #f7f9fc;}
 
-.main {
-    background-color: #f5f7fa;
-}
-
-.metric-card {
-    padding: 20px;
-    border-radius: 15px;
-    color: white;
+.metric-box {
+    padding: 18px;
+    border-radius: 12px;
     text-align: center;
-    font-size: 20px;
-    font-weight: bold;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
+    font-weight: 600;
+    color: white;
+    box-shadow: 0px 3px 10px rgba(0,0,0,0.15);
 }
 
-.green {
-    background: linear-gradient(135deg, #00b09b, #96c93d);
-}
-
-.yellow {
-    background: linear-gradient(135deg, #f7971e, #ffd200);
-}
-
-.red {
-    background: linear-gradient(135deg, #ff416c, #ff4b2b);
-}
-
+.green {background: linear-gradient(135deg,#11998e,#38ef7d);}
+.red {background: linear-gradient(135deg,#ff416c,#ff4b2b);}
+.blue {background: linear-gradient(135deg,#396afc,#2948ff);}
+.orange {background: linear-gradient(135deg,#f7971e,#ffd200);}
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# TITLE
+# HEADER
 # ==========================================
-
-st.title("🧬 SVM Cancer Diagnosis Application")
-st.markdown("## Interactive Machine Learning Web App")
+st.title("🧬 SVM Cancer Diagnosis System")
+st.caption("Interactive ML Dashboard for Breast Cancer Prediction")
 
 # ==========================================
 # SIDEBAR
 # ==========================================
+st.sidebar.header("📁 Dataset Upload")
+uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 
-st.sidebar.header("📂 Upload Dataset")
-
-uploaded_file = st.sidebar.file_uploader(
-    "Upload CSV File",
-    type=['csv']
-)
+# SVM SETTINGS
+st.sidebar.markdown("## ⚙️ Model Settings")
+kernel = st.sidebar.selectbox("Kernel Type", ['linear', 'rbf', 'poly', 'sigmoid'])
+C = st.sidebar.slider("Regularization (C)", 0.01, 100.0, 1.0)
+gamma = st.sidebar.selectbox("Gamma", ['scale', 'auto'])
+test_size = st.sidebar.slider("Test Size", 0.1, 0.4, 0.2)
 
 # ==========================================
 # LOAD DATA
 # ==========================================
-
-if uploaded_file is not None:
-
+if uploaded_file:
     df = pd.read_csv(uploaded_file)
-
 else:
     from sklearn.datasets import load_breast_cancer
-
     data = load_breast_cancer(as_frame=True)
-
     df = data.frame
+    df.rename(columns={'target': 'diagnosis'}, inplace=True)
 
-    df.rename(columns={'target':'diagnosis'}, inplace=True)
-
-# ==========================================
-# HANDLE DIAGNOSIS COLUMN
-# ==========================================
-
+# Convert labels if needed
 if df['diagnosis'].dtype == 'object':
+    df['diagnosis'] = df['diagnosis'].map({'M': 1, 'B': 0})
 
-    if 'M' in df['diagnosis'].unique():
-
-        df['diagnosis'] = df['diagnosis'].map({
-            'M':1,
-            'B':0
-        })
+# Drop unnecessary columns
+df.drop(columns=[c for c in ['id', 'Unnamed: 32'] if c in df.columns], inplace=True)
 
 # ==========================================
-# DROP UNWANTED COLUMNS
+# DATA PREVIEW
 # ==========================================
-
-drop_cols = ['id', 'Unnamed: 32']
-
-for col in drop_cols:
-
-    if col in df.columns:
-        df.drop(columns=col, inplace=True)
-
-# ==========================================
-# DATASET OVERVIEW
-# ==========================================
-
-st.markdown("---")
-
-st.subheader("📊 Dataset Preview")
-
+st.markdown("## 📊 Dataset Overview")
 st.dataframe(df.head(), use_container_width=True)
 
 # ==========================================
 # METRICS
 # ==========================================
+st.markdown("## 📌 Dataset Summary")
 
-rows = df.shape[0]
-cols = df.shape[1]
-missing = df.isnull().sum().sum()
-
+rows, cols = df.shape
 malignant = (df['diagnosis'] == 1).sum()
 benign = (df['diagnosis'] == 0).sum()
 
-m_percent = (malignant / len(df)) * 100
-b_percent = (benign / len(df)) * 100
-
 c1, c2, c3, c4 = st.columns(4)
 
-c1.markdown(f"""
-<div class='metric-card green'>
-Rows<br>{rows}
-</div>
-""", unsafe_allow_html=True)
-
-c2.markdown(f"""
-<div class='metric-card yellow'>
-Columns<br>{cols}
-</div>
-""", unsafe_allow_html=True)
-
-c3.markdown(f"""
-<div class='metric-card red'>
-Malignant %<br>{m_percent:.2f}
-</div>
-""", unsafe_allow_html=True)
-
-c4.markdown(f"""
-<div class='metric-card green'>
-Benign %<br>{b_percent:.2f}
-</div>
-""", unsafe_allow_html=True)
+c1.markdown(f"<div class='metric-box blue'>Rows<br>{rows}</div>", unsafe_allow_html=True)
+c2.markdown(f"<div class='metric-box orange'>Columns<br>{cols}</div>", unsafe_allow_html=True)
+c3.markdown(f"<div class='metric-box red'>Malignant<br>{malignant}</div>", unsafe_allow_html=True)
+c4.markdown(f"<div class='metric-box green'>Benign<br>{benign}</div>", unsafe_allow_html=True)
 
 # ==========================================
-# NULL VALUES
+# DISTRIBUTION
 # ==========================================
+st.markdown("## ⚖️ Class Distribution")
 
-st.markdown("---")
-
-st.subheader("🕳️ Missing Values")
-
-st.write(df.isnull().sum())
-
-# ==========================================
-# CLASS DISTRIBUTION
-# ==========================================
-
-st.markdown("---")
-
-st.subheader("⚖️ Diagnosis Distribution")
-
-counts = df['diagnosis'].value_counts().reset_index()
-
-counts.columns = ['Diagnosis', 'Count']
-
-fig = px.bar(
-    counts,
-    x='Diagnosis',
-    y='Count',
-    color='Diagnosis',
-    text='Count',
-    title='Benign vs Malignant'
-)
-
+fig = px.histogram(df, x='diagnosis', color='diagnosis', text_auto=True)
 st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# CORRELATION HEATMAP
+# HEATMAP
 # ==========================================
+st.markdown("## 🔥 Correlation Heatmap")
 
-st.markdown("---")
-
-st.subheader("🔥 Correlation Heatmap")
-
-fig, ax = plt.subplots(figsize=(18,14))
-
-sns.heatmap(
-    df.corr(),
-    cmap='coolwarm',
-    ax=ax
-)
-
+fig, ax = plt.subplots(figsize=(12, 8))
+sns.heatmap(df.corr(), cmap="coolwarm", ax=ax)
 st.pyplot(fig)
 
 # ==========================================
-# FEATURE DISTRIBUTION
+# FEATURES
 # ==========================================
+st.markdown("## 📈 Feature Analysis")
 
-st.markdown("---")
-
-st.subheader("📈 Feature Distribution")
-
-feature = st.selectbox(
-    "Select Feature",
-    df.drop('diagnosis', axis=1).columns
-)
+feature = st.selectbox("Select Feature", df.drop('diagnosis', axis=1).columns)
 
 fig = go.Figure()
-
-fig.add_trace(
-    go.Histogram(
-        x=df[df['diagnosis']==0][feature],
-        name='Benign',
-        opacity=0.6
-    )
-)
-
-fig.add_trace(
-    go.Histogram(
-        x=df[df['diagnosis']==1][feature],
-        name='Malignant',
-        opacity=0.6
-    )
-)
-
-fig.update_layout(
-    barmode='overlay',
-    title=f'Distribution of {feature}'
-)
-
+fig.add_trace(go.Histogram(x=df[df['diagnosis']==0][feature], name="Benign", opacity=0.6))
+fig.add_trace(go.Histogram(x=df[df['diagnosis']==1][feature], name="Malignant", opacity=0.6))
+fig.update_layout(barmode='overlay', title=f"{feature} Distribution")
 st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# FEATURE SELECTION
+# SPLIT DATA
 # ==========================================
-
 X = df.drop('diagnosis', axis=1)
-
 y = df['diagnosis']
 
-# ==========================================
-# SIDEBAR SETTINGS
-# ==========================================
-
-st.sidebar.markdown("---")
-
-st.sidebar.header("⚙️ SVM Settings")
-
-kernel = st.sidebar.selectbox(
-    "Kernel",
-    ['linear', 'rbf', 'poly', 'sigmoid']
-)
-
-C = st.sidebar.slider(
-    "Regularization (C)",
-    0.01,
-    100.0,
-    1.0
-)
-
-gamma = st.sidebar.selectbox(
-    "Gamma",
-    ['scale', 'auto']
-)
-
-test_size = st.sidebar.slider(
-    "Test Size",
-    0.1,
-    0.4,
-    0.2
-)
-
-# ==========================================
-# TRAIN TEST SPLIT
-# ==========================================
-
 X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
+    X, y,
     test_size=test_size,
     random_state=42,
     stratify=y
 )
 
-# ==========================================
-# FEATURE SCALING
-# ==========================================
-
 scaler = StandardScaler()
-
-X_train_scaled = scaler.fit_transform(X_train)
-
-X_test_scaled = scaler.transform(X_test)
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
 
 # ==========================================
-# TRAIN BUTTON
+# TRAIN MODEL
 # ==========================================
+st.markdown("## 🚀 Train Model")
 
-if st.button("🚀 Train SVM Model"):
+if st.button("Train SVM Model"):
 
     progress = st.progress(0)
-
     for i in range(100):
         time.sleep(0.01)
         progress.progress(i + 1)
 
-    # ======================================
-    # MODEL
-    # ======================================
+    model = SVC(kernel=kernel, C=C, gamma=gamma, probability=True)
+    model.fit(X_train, y_train)
 
-    model = SVC(
-        kernel=kernel,
-        C=C,
-        gamma=gamma,
-        probability=True
-    )
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]
 
-    model.fit(X_train_scaled, y_train)
-
-    # ======================================
-    # PREDICTIONS
-    # ======================================
-
-    y_pred = model.predict(X_test_scaled)
-
-    y_prob = model.predict_proba(X_test_scaled)[:,1]
-
-    # ======================================
-    # METRICS
-    # ======================================
-
-    accuracy = accuracy_score(y_test, y_pred)
-
-    precision = precision_score(y_test, y_pred)
-
-    recall = recall_score(y_test, y_pred)
-
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred)
+    rec = recall_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
 
-    st.markdown("---")
-
-    st.subheader("📈 Model Performance")
+    st.markdown("## 📊 Model Performance")
 
     m1, m2, m3, m4 = st.columns(4)
-
-    m1.metric("Accuracy", f"{accuracy:.3f}")
-
-    m2.metric("Precision", f"{precision:.3f}")
-
-    m3.metric("Recall", f"{recall:.3f}")
-
+    m1.metric("Accuracy", f"{acc:.3f}")
+    m2.metric("Precision", f"{prec:.3f}")
+    m3.metric("Recall", f"{rec:.3f}")
     m4.metric("F1 Score", f"{f1:.3f}")
 
-    # ======================================
-    # CONFUSION MATRIX
-    # ======================================
-
-    st.markdown("---")
-
-    st.subheader("🧩 Confusion Matrix")
-
+    # Confusion Matrix
+    st.markdown("## 🧩 Confusion Matrix")
     cm = confusion_matrix(y_test, y_pred)
 
-    fig, ax = plt.subplots(figsize=(5,4))
-
-    sns.heatmap(
-        cm,
-        annot=True,
-        fmt='d',
-        cmap='Blues',
-        ax=ax
-    )
-
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
-
+    fig, ax = plt.subplots()
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
     st.pyplot(fig)
 
-    # ======================================
-    # CLASSIFICATION REPORT
-    # ======================================
-
-    st.markdown("---")
-
-    st.subheader("📋 Classification Report")
-
-    report = classification_report(
-        y_test,
-        y_pred,
-        output_dict=True
-    )
-
-    report_df = pd.DataFrame(report).transpose()
-
-    st.dataframe(report_df, use_container_width=True)
-
-    # ======================================
-    # ROC CURVE
-    # ======================================
-
-    st.markdown("---")
-
-    st.subheader("📉 ROC Curve")
-
+    # ROC Curve
+    st.markdown("## 📉 ROC Curve")
     fpr, tpr, _ = roc_curve(y_test, y_prob)
-
     roc_auc = auc(fpr, tpr)
 
-    roc_fig = go.Figure()
-
-    roc_fig.add_trace(
-        go.Scatter(
-            x=fpr,
-            y=tpr,
-            mode='lines',
-            name=f'AUC = {roc_auc:.3f}'
-        )
-    )
-
-    roc_fig.update_layout(
-        title='ROC Curve',
-        xaxis_title='False Positive Rate',
-        yaxis_title='True Positive Rate'
-    )
-
-    st.plotly_chart(roc_fig, use_container_width=True)
-
-    # ======================================
-    # SAVE MODEL
-    # ======================================
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=fpr, y=tpr, name=f"AUC={roc_auc:.3f}"))
+    st.plotly_chart(fig, use_container_width=True)
 
     st.session_state['model'] = model
     st.session_state['scaler'] = scaler
 
 # ==========================================
-# PATIENT PREDICTION
+# PREDICTION
 # ==========================================
+st.markdown("## 🔍 Predict New Patient")
 
-st.markdown("---")
-
-st.subheader("🔍 Predict New Patient")
-
-if 'model' not in st.session_state:
-
-    st.warning("⚠️ Train the model first")
-
-else:
+if 'model' in st.session_state:
 
     model = st.session_state['model']
-
     scaler = st.session_state['scaler']
 
     input_data = {}
 
-    feature_cols = X.columns[:10]
+    for col in X.columns[:10]:
+        input_data[col] = st.slider(col, float(X[col].min()), float(X[col].max()), float(X[col].mean()))
 
-    for col in feature_cols:
-
-        input_data[col] = st.slider(
-            col,
-            float(X[col].min()),
-            float(X[col].max()),
-            float(X[col].mean())
-        )
-
-    if st.button("🩺 Diagnose"):
+    if st.button("Predict"):
 
         input_df = pd.DataFrame([input_data])
 
-        missing_cols = list(
-            set(X.columns) - set(input_df.columns)
-        )
-
-        for col in missing_cols:
-
-            input_df[col] = X[col].mean()
+        for col in X.columns:
+            if col not in input_df:
+                input_df[col] = X[col].mean()
 
         input_df = input_df[X.columns]
-
         input_scaled = scaler.transform(input_df)
 
-        prediction = model.predict(input_scaled)[0]
+        pred = model.predict(input_scaled)[0]
+        prob = model.predict_proba(input_scaled)[0][1]
 
-        probability = model.predict_proba(input_scaled)[0][1]
-
-        if prediction == 1:
-
-            st.error("🔴 MALIGNANT — High Cancer Risk")
-
+        if pred == 1:
+            st.error("🔴 Malignant (High Risk)")
         else:
+            st.success("🟢 Benign (Low Risk)")
 
-            st.success("🟢 BENIGN — Low Cancer Risk")
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=prob * 100,
+            title={'text': "Cancer Probability"},
+            gauge={'axis': {'range': [0, 100]}}
+        ))
 
-        # ======================================
-        # GAUGE CHART
-        # ======================================
+        st.plotly_chart(fig, use_container_width=True)
 
-        gauge = go.Figure(
-            go.Indicator(
-                mode="gauge+number",
-                value=probability*100,
-                title={'text':'Cancer Probability'},
-                gauge={
-                    'axis': {'range':[0,100]}
-                }
-            )
-        )
-
-        st.plotly_chart(gauge, use_container_width=True)
+else:
+    st.warning("Train the model first ⚠️")
